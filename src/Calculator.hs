@@ -20,6 +20,9 @@ import           Control.Monad.Identity
 
 newtype CalcError = CalcError String
 
+showCalcError :: CalcError -> String
+showCalcError (CalcError str) = str
+
 newtype Calculator a = Calculator (Either CalcError (Expr a))
   deriving (Functor, Foldable, Traversable)
 

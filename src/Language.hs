@@ -14,7 +14,7 @@ import           Data.List
 newtype ConstantName = ConstantName String deriving (Show)
 newtype LawName      = LawName String deriving (Show, Eq)
 
-data VarName = VarName String deriving (Show) --Char (Maybe Int)
+data VarName = VarName String deriving (Show, Eq) --Char (Maybe Int)
 
 varNameStr :: VarName -> String
 varNameStr (VarName str) = str
