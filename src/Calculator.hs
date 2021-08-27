@@ -6,6 +6,7 @@
 {-# LANGUAGE DeriveFoldable, DeriveTraversable #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module Calculator
   where
@@ -18,6 +19,7 @@ import           Control.Applicative
 import           Control.Monad
 import           Control.Monad.State
 import           Control.Monad.Identity
+import           Control.Monad.Except
 
 import           Data.String
 
@@ -77,6 +79,15 @@ zipMap_ _ (_:_) [] = lift $ Left "Unification error: zipMap: wrong number of arg
 zipMap_ _ [] (_:_) = lift $ Left "Unification error: zipMap: wrong number of arguments"
 zipMap_ f (x:xs) (y:ys) = f x y *> zipMap_ f xs ys
 
+extendSubst :: (Eq a, Show a, MonadState (Subst a) m, MonadError CalcError m) => a -> Expr a -> m ()
+extendSubst var x = do
+  subst@(Subst sts) <- get
+  case substLookup subst var of
+    Left _ -> put (Subst ((var, x):sts))
+    Right y -> do
+      subst' <- liftEither (unifyExprUsing subst x y) -- TODO: Is this correct?
+      put subst'
+
 unifyExprUsing :: forall a. (Eq a, Show a) => Subst a -> Expr a -> Expr a -> Either CalcError (Subst a)
 unifyExprUsing subst0 lhs rhs = execStateT (go' lhs rhs) subst0
   where
@@ -91,6 +102,12 @@ unifyExprUsing subst0 lhs rhs = execStateT (go' lhs rhs) subst0
       st' <- lift $ unifyExpr xE yE
       put st'
       go xs ys
+    go (Var v:xs) (y:ys) = do
+      extendSubst v (Compose [y])
+      go xs ys
+    go (x:xs) (Var v:ys) = do
+      extendSubst v (Compose [x])
+      go xs ys
     go (Constant f argsF : xs) (Constant g argsG : ys) = do
       st <- get
       when (f /= g) $
@@ -99,7 +116,7 @@ unifyExprUsing subst0 lhs rhs = execStateT (go' lhs rhs) subst0
       zipMap_ go' argsF argsG
 
       go xs ys
-    go x y = lift $ Left $ "Cannot unify " <> fromString (show x) <> " with " <> fromString (show y)
+    -- go x y = lift $ Left $ "Cannot unify " <> fromString (show x) <> " with " <> fromString (show y)
 
     go' (Compose xs) (Compose ys) = go xs ys
 
