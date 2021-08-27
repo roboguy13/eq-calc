@@ -1,0 +1,10 @@
+**/.DS_Store
+*.o
+*.so
+a.out
+*.dyn_o
+*.dyn_hi
+*.hi
+.*.swp
+.*.swo
+.*.swn
