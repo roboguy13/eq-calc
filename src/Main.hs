@@ -31,6 +31,7 @@ go laws proofStr =
     Right (Just proofSteps) ->
       case verifyProofSteps proofSteps of
         Left err -> putStrLn $ "Error in proof:\n" ++ showCalcError err
+        Right subst -> putStrLn "Correct."
 
 interactive :: (String -> IO ()) -> IO ()
 interactive f = do

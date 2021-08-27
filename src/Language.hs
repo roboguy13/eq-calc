@@ -11,7 +11,7 @@ import           Control.Applicative
 
 import           Data.List
 
-newtype ConstantName = ConstantName String deriving (Show)
+newtype ConstantName = ConstantName String deriving (Show, Eq)
 newtype LawName      = LawName String deriving (Show, Eq)
 
 data VarName = VarName String deriving (Show, Eq) --Char (Maybe Int)

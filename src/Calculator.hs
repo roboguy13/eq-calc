@@ -61,10 +61,17 @@ singleSubst v e = Subst [(v, e)]
 substLookup :: Eq a => Subst a -> a -> Maybe (Expr a)
 substLookup (Subst st) v = lookup v st
 
+zipMap_ :: (Applicative (t Maybe), MonadTrans t) => (a -> b -> t Maybe ()) -> [a] -> [b] -> t Maybe ()
+zipMap_ _ [] [] = pure ()
+zipMap_ _ (_:_) [] = lift Nothing
+zipMap_ _ [] (_:_) = lift Nothing
+zipMap_ f (x:xs) (y:ys) = f x y *> zipMap_ f xs ys
+
 unifyExprUsing :: forall a. Eq a => Subst a -> Expr a -> Expr a -> Maybe (Subst a)
-unifyExprUsing subst0 (Compose lhs) (Compose rhs) = execStateT (go lhs rhs) subst0
+unifyExprUsing subst0 lhs rhs = execStateT (go' lhs rhs) subst0
   where
     go :: [Atom a] -> [Atom a] -> StateT (Subst a) Maybe ()
+    go [] [] = pure ()
     go (_:_) [] = lift Nothing
     go [] (_:_) = lift Nothing
     go (Var x:xs) (Var y:ys) = do
@@ -74,6 +81,15 @@ unifyExprUsing subst0 (Compose lhs) (Compose rhs) = execStateT (go lhs rhs) subs
       st' <- lift $ unifyExpr xE yE
       put st'
       go xs ys
+    go (Constant f argsF : xs) (Constant g argsG : ys) = do
+      st <- get
+      guard (f == g)
+
+      zipMap_ go' argsF argsG
+
+      go xs ys
+
+    go' (Compose xs) (Compose ys) = go xs ys
 
 unifyExpr :: Eq a => Expr a -> Expr a -> Maybe (Subst a)
 unifyExpr = unifyExprUsing mempty
