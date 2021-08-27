@@ -1,2 +1,3 @@
-law: abc = def
+{law}: abc = def
+{map1}: map f . map g = map (f . g)
 

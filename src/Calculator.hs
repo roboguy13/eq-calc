@@ -88,6 +88,7 @@ unifyExprUsing subst0 lhs rhs = execStateT (go' lhs rhs) subst0
       zipMap_ go' argsF argsG
 
       go xs ys
+    go _ _ = lift Nothing
 
     go' (Compose xs) (Compose ys) = go xs ys
 
