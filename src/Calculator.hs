@@ -95,13 +95,15 @@ unifyExprUsing subst0 lhs rhs = execStateT (go' lhs rhs) subst0
     go [] [] = pure ()
     go (_:_) [] = lift $ Left "Unification error: Wrong number of arguments"
     go [] (_:_) = lift $ Left "Unification error: Wrong number of arguments"
-    go (Var x:xs) (Var y:ys) = do
-      st <- get
-      xE <- lift $ substLookup st x
-      yE <- lift $ substLookup st y
-      st' <- lift $ unifyExpr xE yE
-      put st'
-      go xs ys
+    go (Var x:xs) (Var y:ys) 
+      | x == y = go xs ys
+      | otherwise = do
+        st <- get
+        xE <- lift $ substLookup st x
+        yE <- lift $ substLookup st y
+        st' <- lift $ unifyExpr xE yE
+        put st'
+        go xs ys
     go (Var v:xs) (y:ys) = do
       extendSubst v (Compose [y])
       go xs ys
