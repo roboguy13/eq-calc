@@ -68,19 +68,32 @@ lookupLaw laws name = find go laws
       | name' == name = True
       | otherwise     = False
 
-parseProofStep :: [Law VarName] -> Parser (Maybe (ProofStep VarName))
-parseProofStep laws = do
-  lhs <- parseExpr
-  some whitespace
-  char '='
-  some whitespace
-  lawName <- bracketed (char '{') (char '}') parseLawName
-  some whitespace
-  rhs <- parseExpr
+parseProofSteps :: [Law VarName] -> Parser (Maybe [ProofStep VarName])
+parseProofSteps laws = do
+  firstLhs <- parseExpr
+  rest <- some go
 
-  let law_maybe = lookupLaw laws lawName
+  let eqs = makeEqs firstLhs rest
 
-  pure (ProofStep <$> law_maybe <*> pure (lhs :=: rhs))
+  pure $ mapM makeProofStep eqs
+  where
+    go = do
+      some whitespace
+      char '='
+      some whitespace
+      lawName <- bracketed (char '{') (char '}') parseLawName
+      some whitespace
+      e <- parseExpr
+      pure (lawName, e)
+
+    makeEqs x [] = error "parseProofSteps.makeEqs: []"
+    makeEqs x [(lawName, y)] = [(lawName, x :=: y)]
+    makeEqs x ((lawName, y):ys) = (lawName, x :=: y) : makeEqs y ys
+
+    makeProofStep (lawName, eq) =
+      let law_maybe = lookupLaw laws lawName
+      in
+      ProofStep <$> law_maybe <*> pure eq
 
 parseLaw :: Parser (Law VarName)
 parseLaw = do
