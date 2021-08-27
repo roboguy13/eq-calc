@@ -9,59 +9,14 @@
 module Calculator
   where
 
+import           Language
+import           Ppr
+
 import           Data.List
 import           Control.Applicative
 import           Control.Monad
 import           Control.Monad.State
 import           Control.Monad.Identity
-
-class Ppr a where
-  ppr :: a -> String
-
-newtype ConstantName = SymbolName String
-newtype LawName      = LawName String
-
-data VarName = VarName Char (Maybe Int)
-
-varNameStr :: VarName -> String
-varNameStr (VarName c i) = c:show i
-
-instance Ppr VarName where ppr = varNameStr
-
-newtype Expr a = Compose [Atom a]
-  deriving (Functor, Foldable, Traversable, Semigroup)
-
-instance Applicative Expr where
-  pure x = Compose [pure x]
-  (<*>) = ap
-
-instance Monad Expr where
-  Compose xs0 >>= f = Compose (go xs0)
-    where
-      go [] = []
-      go (Var x : rest) =
-        let Compose fx = f x
-        in
-        fx ++ go rest
-
-data Atom a = Var a | Constant ConstantName
-  deriving (Functor, Foldable, Traversable)
-
-instance Applicative Atom where
-  pure = Var
-  (<*>) = ap
-
-instance Monad Atom where
-  Var x >>= f = f x
-  Constant c >>= _ = Constant c
-
-data Equation a = Expr a :=: Expr a
-data Law a = Law LawName (Equation a)
-
-data ProofStep a = ProofStep (Law a) (Equation a)
-
-newtype Subst a = Subst [(a, Expr a)]
-  deriving (Semigroup, Monoid)
 
 newtype CalcError = CalcError String
 
@@ -142,6 +97,4 @@ verifyProofSteps xs = execStateT (mapM_ go xs) mempty
       st <- get
       lift $ verifyProofStep st step
       pure ()
-
-type Laws a = [(LawName, Law a)]
 
