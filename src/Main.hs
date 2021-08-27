@@ -8,20 +8,24 @@ import           Parser
 
 import           System.Environment
 import           System.IO
+import           System.Exit
+
 import           Control.Applicative
 
 main :: IO ()
 main = do
   getArgs >>= \case
     [] -> error "No arguments. Expected file name with laws"
-    [lawFileName] -> readFile lawFileName >>= (interactive . go . parseLawsError)
+    [lawFileName] -> readFile lawFileName >>= parseLawsError >>= (interactive . go)
     _ -> error "Too many arguments. Expected one argument with file name containing laws"
 
-parseLawsError :: String -> [Law VarName]
+parseLawsError :: String -> IO [Law VarName]
 parseLawsError str =
   case parse (parseLaws <* many whitespace) str of
-    Left err -> error $ "Parse error in laws:\n" ++ err
-    Right r -> r
+    Left err -> do
+      putStrLn $ "Parse error in laws:\n" ++ err
+      exitFailure
+    Right r -> pure r
 
 go :: [Law VarName] -> String -> IO ()
 go laws proofStr =

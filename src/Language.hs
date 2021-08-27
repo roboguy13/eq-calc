@@ -97,9 +97,9 @@ parseProofSteps laws = do
 
 parseLaw :: Parser (Law VarName)
 parseLaw = do
-  name <- parseLawName
+  name <- bracketed (char '{') (char '}') parseLawName
   char ':'
-  many whitespace
+  some whitespace
   lhs <- parseExpr
   some whitespace
   char '='
@@ -108,7 +108,12 @@ parseLaw = do
   pure (Law name (lhs :=: rhs))
 
 parseLaws :: Parser [Law VarName]
-parseLaws = some parseLaw
+parseLaws = go -- <|> fmap (:[]) parseLaw
+  where
+    go = do --(parseLaw *> some whitespace *> parseLaws)
+      law <- parseLaw
+      fmap (law:) $ many (some (char '\n') *> parseLaw)
+      -- fmap (law:) parseLaws
 
 isReserved :: String -> Bool
 isReserved = (`elem` [".", "=", "{", "}"])
@@ -120,8 +125,9 @@ parseConstantName = do
   pure (ConstantName name)
 
 parseExpr :: Parser (Expr VarName)
-parseExpr = go <|> fmap (Compose . (:[])) parseAtom
+parseExpr = parens go2 <|> go2
   where
+    go2 = go <|> fmap (Compose . (:[])) parseAtom
     go = do
       a <- parseAtom
       some whitespace
@@ -141,18 +147,26 @@ parseVarName = fmap VarName (go <|> fmap (:[]) alpha)
       d <- digit
       pure [a,d]
 
+isVarName :: String -> Bool
+isVarName [c] = c `elem` (['a'..'z'] ++ ['A'..'Z'])
+isVarName [c,d] = isVarName [c] && d `elem` ['0'..'9']
+isVarName _ = False
+
 parseConstant :: Parser (ConstantName, [Expr VarName])
 parseConstant = parens go <|> go
   where
     go = parseUnappliedOperator <|> parseInfix <|> do
-      name <- parseConstantName
-      args <- many (whitespace *> parseArg)
+      name@(ConstantName nameStr) <- parseConstantName
+      guard (not (isVarName nameStr))
+      args <- many (some whitespace *> parseArg)
       pure (name, args)
 
-    parseArg = toExpr (parseConstant) <|> toExpr parseUnappliedOperator <|> parens parseExpr <|> toExpr parseInfix
+    parseArg = parens parseExpr <|> toExpr parseConstant <|> toExpr parseUnappliedOperator <|> toExpr parseInfix <|> fmap varName parseVarName
 
     toExpr :: Parser (ConstantName, [Expr a]) -> Parser (Expr a)
     toExpr = fmap (\(n, es) -> Compose [Constant n es])
+
+    varName v = Compose [Var v]
 
 parseUnappliedOperator :: Parser (ConstantName, [Expr VarName])
 parseUnappliedOperator = do
@@ -163,10 +177,13 @@ parseInfix :: Parser (ConstantName, [Expr VarName])
 parseInfix = parens $ do
   lhs <- parseExpr
   some whitespace
+
   opName <- operator
   guard (not (isReserved opName))
+
   some whitespace
   rhs <- parseExpr
+
   pure (ConstantName opName, [lhs, rhs])
 
 
