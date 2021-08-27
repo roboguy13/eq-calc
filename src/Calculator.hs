@@ -5,6 +5,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE DeriveFoldable, DeriveTraversable #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Calculator
   where
@@ -18,7 +19,13 @@ import           Control.Monad
 import           Control.Monad.State
 import           Control.Monad.Identity
 
+import           Data.String
+
 newtype CalcError = CalcError String
+  deriving (Semigroup, Monoid)
+
+instance IsString CalcError where
+  fromString = CalcError
 
 showCalcError :: CalcError -> String
 showCalcError (CalcError str) = str
@@ -46,34 +53,37 @@ calcError = Calculator . Left . CalcError
 calcExpr :: Expr a -> Calculator a
 calcExpr = Calculator . Right
 
-performSubst :: forall a. (Eq a, Ppr a) => Subst a -> Expr a -> Calculator a
+performSubst :: forall a. (Eq a, Show a, Ppr a) => Subst a -> Expr a -> Calculator a
 performSubst st = (>>= go) . calcExpr
   where
     go :: a -> Calculator a
-    go v =
-      case substLookup st v of
-        Nothing -> calcError $ "Cannot find variable " ++ ppr v ++ " in substitution."
-        Just x -> calcExpr x
+    go v = Calculator $ substLookup st v
+      -- case substLookup st v of
+      --   Nothing -> calcError $ "Cannot find variable " ++ ppr v ++ " in substitution."
+      --   Just x -> calcExpr x
 
 singleSubst :: a -> Expr a -> Subst a
 singleSubst v e = Subst [(v, e)]
 
-substLookup :: Eq a => Subst a -> a -> Maybe (Expr a)
-substLookup (Subst st) v = lookup v st
+substLookup :: (Eq a, Show a) => Subst a -> a -> Either CalcError (Expr a)
+substLookup (Subst st) v =
+  case lookup v st of
+    Nothing -> Left $ "Cannot find " <> fromString (show v) <> " in substitution " <> fromString (show st)
+    Just x -> Right x
 
-zipMap_ :: (Applicative (t Maybe), MonadTrans t) => (a -> b -> t Maybe ()) -> [a] -> [b] -> t Maybe ()
+zipMap_ :: (Applicative (t (Either CalcError)), MonadTrans t) => (a -> b -> t (Either CalcError) ()) -> [a] -> [b] -> t (Either CalcError) ()
 zipMap_ _ [] [] = pure ()
-zipMap_ _ (_:_) [] = lift Nothing
-zipMap_ _ [] (_:_) = lift Nothing
+zipMap_ _ (_:_) [] = lift $ Left "Unification error: zipMap: wrong number of arguments"
+zipMap_ _ [] (_:_) = lift $ Left "Unification error: zipMap: wrong number of arguments"
 zipMap_ f (x:xs) (y:ys) = f x y *> zipMap_ f xs ys
 
-unifyExprUsing :: forall a. Eq a => Subst a -> Expr a -> Expr a -> Maybe (Subst a)
+unifyExprUsing :: forall a. (Eq a, Show a) => Subst a -> Expr a -> Expr a -> Either CalcError (Subst a)
 unifyExprUsing subst0 lhs rhs = execStateT (go' lhs rhs) subst0
   where
-    go :: [Atom a] -> [Atom a] -> StateT (Subst a) Maybe ()
+    go :: [Atom a] -> [Atom a] -> StateT (Subst a) (Either CalcError) ()
     go [] [] = pure ()
-    go (_:_) [] = lift Nothing
-    go [] (_:_) = lift Nothing
+    go (_:_) [] = lift $ Left "Unification error: Wrong number of arguments"
+    go [] (_:_) = lift $ Left "Unification error: Wrong number of arguments"
     go (Var x:xs) (Var y:ys) = do
       st <- get
       xE <- lift $ substLookup st x
@@ -83,32 +93,33 @@ unifyExprUsing subst0 lhs rhs = execStateT (go' lhs rhs) subst0
       go xs ys
     go (Constant f argsF : xs) (Constant g argsG : ys) = do
       st <- get
-      guard (f == g)
+      when (f /= g) $
+        lift $ Left $ "Cannot unify " <> fromString (show f) <> " with " <> fromString (show g)
 
       zipMap_ go' argsF argsG
 
       go xs ys
-    go _ _ = lift Nothing
+    go x y = lift $ Left $ "Cannot unify " <> fromString (show x) <> " with " <> fromString (show y)
 
     go' (Compose xs) (Compose ys) = go xs ys
 
-unifyExpr :: Eq a => Expr a -> Expr a -> Maybe (Subst a)
+unifyExpr :: (Eq a, Show a) => Expr a -> Expr a -> Either CalcError (Subst a)
 unifyExpr = unifyExprUsing mempty
 
-unifyUsing :: Eq a => Subst a -> Law a -> Equation a -> Either CalcError (Subst a)
-unifyUsing subst0 (Law lawName (lawLhs :=: lawRhs)) (stepLhs :=: stepRhs) =
-  case go of
-    Nothing -> Left $ CalcError "Cannot unify" -- TODO: Descriptive error
-    Just r -> Right r
+unifyUsing :: (Eq a, Show a) => Subst a -> Law a -> Equation a -> Either CalcError (Subst a)
+unifyUsing subst0 (Law lawName (lawLhs :=: lawRhs)) (stepLhs :=: stepRhs) = go
+  -- case go of
+  --   Nothing -> Left $ CalcError "Cannot unify" -- TODO: Descriptive error
+  --   Just r -> Right r
   where
     go = do
       st <- unifyExprUsing subst0 stepLhs lawLhs
       unifyExprUsing st stepRhs lawRhs
 
-verifyProofStep :: Eq a => Subst a -> ProofStep a -> Either CalcError (Subst a)
+verifyProofStep :: (Eq a, Show a) => Subst a -> ProofStep a -> Either CalcError (Subst a)
 verifyProofStep subst0 (ProofStep eq law) = unifyUsing subst0 eq law
 
-verifyProofSteps :: forall a. Eq a => [ProofStep a] -> Either CalcError (Subst a)
+verifyProofSteps :: forall a. (Eq a, Show a) => [ProofStep a] -> Either CalcError (Subst a)
 verifyProofSteps [] = pure mempty
 verifyProofSteps xs = execStateT (mapM_ go xs) mempty
   where

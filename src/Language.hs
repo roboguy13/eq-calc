@@ -55,7 +55,7 @@ data Law a = Law LawName (Equation a) deriving Show
 data ProofStep a = ProofStep (Law a) (Equation a) deriving Show
 
 newtype Subst a = Subst [(a, Expr a)]
-  deriving (Semigroup, Monoid)
+  deriving (Semigroup, Monoid, Show)
 
 
 parseLawName :: Parser LawName
