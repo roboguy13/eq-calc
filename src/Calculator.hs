@@ -12,6 +12,7 @@ module Calculator
   where
 
 import           Language
+import           Rewrite
 import           Ppr
 
 import           Data.List
@@ -32,7 +33,7 @@ instance IsString CalcError where
 showCalcError :: CalcError -> String
 showCalcError (CalcError str) = str
 
-newtype Calculator a = Calculator (Either CalcError (Expr a))
+newtype Calculator a = Calculator { runCalculator :: Either CalcError (Expr a) }
   deriving (Functor, Foldable, Traversable)
 
 instance Applicative Calculator where
@@ -48,6 +49,13 @@ instance Monad Calculator where
             gr = go rest
         in
         liftA2 (<>) fx (go rest)
+
+      go (Constant name args : rest) =
+        let f_args = sequenceA $ map (runCalculator . (>>= f) . Calculator . Right) args
+        in
+        liftA2 ((<>) . toExpr)
+               (fmap (Constant name) f_args)
+               (go rest)
 
 calcError :: String -> Calculator a
 calcError = Calculator . Left . CalcError
@@ -134,13 +142,29 @@ unifyUsing subst0 (Law lawName (lawLhs :=: lawRhs)) (stepLhs :=: stepRhs) = go
     go = do
       st <- unifyExprUsing subst0 stepLhs lawLhs
       unifyExprUsing st stepRhs lawRhs
+      -- when (stepRhs /= lawRhs) $
+      --   Left $ "original RHS and transformed RHS do not match:\n" <> fromString (show stepRhs) <> "\n\n" <> fromString (show lawRhs)
 
-verifyProofStep :: (Eq a, Show a) => Subst a -> ProofStep a -> Either CalcError (Subst a)
-verifyProofStep subst0 (ProofStep eq law) = unifyUsing subst0 eq law
+toMaybe :: Either a b -> Maybe b
+toMaybe (Left x) = Nothing
+toMaybe (Right y) = Just y
 
-verifyProofSteps :: forall a. (Eq a, Show a) => [ProofStep a] -> Either CalcError (Subst a)
+tryUnifyUsing :: (Eq a, Ppr a, Show a) => Subst a -> Expr a -> Law a -> Expr a -> Maybe (Expr a)
+tryUnifyUsing subst0 stepRhs (Law lawName (lawLhs :=: lawRhs)) expr0 = do
+  st <- toMaybe (unifyExprUsing subst0 expr0 lawLhs)
+  st' <- toMaybe $ unifyExprUsing st lawRhs stepRhs
+
+  toMaybe . runCalculator $ performSubst st' stepRhs
+
+verifyProofStep :: (Eq a, Ppr a, Show a) => Subst a -> ProofStep a -> Either CalcError ()
+verifyProofStep subst0 (ProofStep law@(Law (LawName lawName) _) eq@(stepLhs :=: stepRhs)) = --unifyUsing subst0 law eq *> pure ()
+  case rewrites (tryUnifyUsing subst0 stepRhs law) stepLhs of
+    [] -> Left ("Cannot unify using law " <> fromString lawName)
+    (_:_) -> Right ()
+
+verifyProofSteps :: forall a. (Eq a, Ppr a, Show a) => [ProofStep a] -> Either CalcError ()
 verifyProofSteps [] = pure mempty
-verifyProofSteps xs = execStateT (mapM_ go xs) mempty
+verifyProofSteps xs = evalStateT (mapM_ go xs) mempty
   where
     go :: ProofStep a -> StateT (Subst a) (Either CalcError) ()
     go step = do

@@ -23,7 +23,7 @@ varNameStr (VarName str) = str
 instance Ppr VarName where ppr = varNameStr
 
 newtype Expr a = Compose { getExpr :: [Atom a] }
-  deriving (Functor, Foldable, Traversable, Semigroup, Show)
+  deriving (Functor, Foldable, Traversable, Semigroup, Show, Eq)
 
 instance Applicative Expr where
   pure x = Compose [pure x]
@@ -39,7 +39,7 @@ instance Monad Expr where
         fx ++ go rest
 
 data Atom a = Var a | Constant ConstantName [Expr a]
-  deriving (Functor, Foldable, Traversable, Show)
+  deriving (Functor, Foldable, Traversable, Show, Eq)
 
 instance Applicative Atom where
   pure = Var
