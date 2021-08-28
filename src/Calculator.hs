@@ -13,6 +13,7 @@ module Calculator
 
 import           Language
 import           Rewrite
+import           Subst
 import           Ppr
 
 import           Data.List
@@ -103,13 +104,22 @@ tryUnifyUsing subst0 stepRhs (Law lawName (lawLhs :=: lawRhs)) expr0 = do
 
   toMaybe . runCalculator $ performSubst st' stepRhs
 
-verifyProofStep :: (Eq a, Ppr a, Show a) => Subst a -> ProofStep a -> Either CalcError ()
-verifyProofStep subst0 (ProofStep law@(Law (LawName lawName) _) eq@(stepLhs :=: stepRhs)) = --unifyUsing subst0 law eq *> pure ()
-  case rewrites (tryUnifyUsing subst0 stepRhs law) stepLhs of
-    [] -> Left ("Cannot unify using law " <> fromString lawName)
-    (_:_) -> Right ()
+-- rewrites :: (Ord a, Ppr a, Show a) => Equation a -> Expr a -> [Expr a]
 
-verifyProofSteps :: forall a. (Eq a, Ppr a, Show a) => [ProofStep a] -> Either CalcError ()
+verifyProofStep :: (Ord a, Ppr a, Show a) => Subst a -> ProofStep a -> Either CalcError ()
+verifyProofStep subst0 (ProofStep law@(Law (LawName lawName) lawEq) eq@(stepLhs :=: stepRhs)) = --unifyUsing subst0 law eq *> pure ()
+  -- case rewrites (tryUnifyUsing subst0 stepRhs law) stepLhs of
+  case rewrites lawEq stepLhs of
+    [] -> Left ("Cannot unify using law " <> fromString lawName)
+    xs -> 
+      let failureMsg = "No unifications rewrite " <> fromString (show stepLhs) <> " into " <> fromString (show stepRhs)
+      in
+      case foldr (<>) (Left failureMsg) $ map (unifyExpr stepRhs) xs of
+        Left err -> Left err
+        Right x -> pure ()
+    -- (_:_) -> Right ()
+
+verifyProofSteps :: forall a. (Ord a, Ppr a, Show a) => [ProofStep a] -> Either CalcError ()
 verifyProofSteps [] = pure mempty
 verifyProofSteps xs = evalStateT (mapM_ go xs) mempty
   where
