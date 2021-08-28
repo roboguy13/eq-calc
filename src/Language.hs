@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveFoldable, DeriveTraversable #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE TupleSections #-}
 
 module Language where
 
@@ -136,6 +137,7 @@ parseConstantName :: Parser ConstantName
 parseConstantName = do
   name <- some alphanum <|> operator
   guard (not (isReserved name))
+  guard (not (isVarName name))
   pure (ConstantName name)
 
 parseExpr :: Parser (Expr VarName)
@@ -175,7 +177,7 @@ parseConstant = parens go <|> go
       args <- many (some whitespace *> parseArg)
       pure (name, args)
 
-    parseArg = parens parseExpr <|> toExpr parseConstant <|> toExpr parseUnappliedOperator <|> toExpr parseInfix <|> fmap varName parseVarName
+    parseArg = parens parseExpr {- <|> toExpr parseConstant -} <|> toExpr (fmap (,[]) parseConstantName) <|> toExpr parseUnappliedOperator <|> toExpr parseInfix <|> fmap varName parseVarName
 
     toExpr :: Parser (ConstantName, [Expr a]) -> Parser (Expr a)
     toExpr = fmap (\(n, es) -> Compose [Constant n es])

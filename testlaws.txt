@@ -1,3 +1,4 @@
 {law}: abc = def
 {map1}: map f . map g = map (f . g)
+{fix1}: f . fix f = fix f
 

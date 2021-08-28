@@ -1,0 +1,14 @@
+filter p . map f
+  =   {definition filter}
+    concat . map (box p) . map f
+  =   {map functor1}
+    concat . map (box p . f)
+  =   {definition box}
+    concat . map (if p one nil . f)
+  =   {if after dot}
+    concat . map (if (p . f) (one . f) (nil . f))
+  =   {nil constant}
+    concat . map (if (p . f) (one . f) nil)
+
+
+
