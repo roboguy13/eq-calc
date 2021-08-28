@@ -24,77 +24,15 @@ import           Control.Monad.Except
 
 import           Data.String
 
-newtype CalcError = CalcError String
-  deriving (Semigroup, Monoid)
-
-instance IsString CalcError where
-  fromString = CalcError
-
 showCalcError :: CalcError -> String
 showCalcError (CalcError str) = str
 
-newtype Calculator a = Calculator { runCalculator :: Either CalcError (Expr a) }
-  deriving (Functor, Foldable, Traversable)
-
-instance Applicative Calculator where
-  pure = calcExpr . pure
-  (<*>) = ap
-
-instance Monad Calculator where
-  Calculator (Right (Compose xs0)) >>= f = Calculator $ go xs0
-    where
-      go [] = Right (Compose [])
-      go (Var x : rest) =
-        let Calculator fx = f x
-            gr = go rest
-        in
-        liftA2 (<>) fx (go rest)
-
-      go (Constant name args : rest) =
-        let f_args = sequenceA $ map (runCalculator . (>>= f) . Calculator . Right) args
-        in
-        liftA2 ((<>) . toExpr)
-               (fmap (Constant name) f_args)
-               (go rest)
-
-calcError :: String -> Calculator a
-calcError = Calculator . Left . CalcError
-
-calcExpr :: Expr a -> Calculator a
-calcExpr = Calculator . Right
-
-performSubst :: forall a. (Eq a, Show a, Ppr a) => Subst a -> Expr a -> Calculator a
-performSubst st = (>>= go) . calcExpr
-  where
-    go :: a -> Calculator a
-    go v = Calculator $ substLookup st v
-      -- case substLookup st v of
-      --   Nothing -> calcError $ "Cannot find variable " ++ ppr v ++ " in substitution."
-      --   Just x -> calcExpr x
-
-singleSubst :: a -> Expr a -> Subst a
-singleSubst v e = Subst [(v, e)]
-
-substLookup :: (Eq a, Show a) => Subst a -> a -> Either CalcError (Expr a)
-substLookup (Subst st) v =
-  case lookup v st of
-    Nothing -> Left $ "Cannot find " <> fromString (show v) <> " in substitution " <> fromString (show st)
-    Just x -> Right x
 
 zipMap_ :: (Applicative (t (Either CalcError)), MonadTrans t) => (a -> b -> t (Either CalcError) ()) -> [a] -> [b] -> t (Either CalcError) ()
 zipMap_ _ [] [] = pure ()
 zipMap_ _ (_:_) [] = lift $ Left "Unification error: zipMap: wrong number of arguments"
 zipMap_ _ [] (_:_) = lift $ Left "Unification error: zipMap: wrong number of arguments"
 zipMap_ f (x:xs) (y:ys) = f x y *> zipMap_ f xs ys
-
-extendSubst :: (Eq a, Show a, MonadState (Subst a) m, MonadError CalcError m) => a -> Expr a -> m ()
-extendSubst var x = do
-  subst@(Subst sts) <- get
-  case substLookup subst var of
-    Left _ -> put (Subst ((var, x):sts))
-    Right y -> do
-      subst' <- liftEither (unifyExprUsing subst x y) -- TODO: Is this correct?
-      put subst'
 
 unifyExprUsing :: forall a. (Eq a, Show a) => Subst a -> Expr a -> Expr a -> Either CalcError (Subst a)
 unifyExprUsing subst0 lhs rhs = execStateT (go' lhs rhs) subst0
@@ -129,6 +67,15 @@ unifyExprUsing subst0 lhs rhs = execStateT (go' lhs rhs) subst0
     -- go x y = lift $ Left $ "Cannot unify " <> fromString (show x) <> " with " <> fromString (show y)
 
     go' (Compose xs) (Compose ys) = go xs ys
+
+extendSubst :: (Eq a, Show a, MonadState (Subst a) m, MonadError CalcError m) => a -> Expr a -> m ()
+extendSubst var x = do
+  subst@(Subst sts) <- get
+  case substLookup subst var of
+    Left _ -> put (Subst ((var, x):sts))
+    Right y -> do
+      subst' <- liftEither (unifyExprUsing subst x y) -- TODO: Is this correct?
+      put subst'
 
 unifyExpr :: (Eq a, Show a) => Expr a -> Expr a -> Either CalcError (Subst a)
 unifyExpr = unifyExprUsing mempty

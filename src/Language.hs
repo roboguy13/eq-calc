@@ -14,7 +14,7 @@ import           Data.List
 newtype ConstantName = ConstantName String deriving (Show, Eq)
 newtype LawName      = LawName String deriving (Show, Eq)
 
-data VarName = VarName String deriving (Show, Eq) --Char (Maybe Int)
+data VarName = VarName String deriving (Show, Eq, Ord) --Char (Maybe Int)
 
 varNameStr :: VarName -> String
 varNameStr (VarName str) = str
@@ -40,6 +40,9 @@ instance Monad Expr where
 
 data Atom a = Var a | Constant ConstantName [Expr a]
   deriving (Functor, Foldable, Traversable, Show, Eq)
+
+toExpr :: Atom a -> Expr a
+toExpr = Compose . (:[])
 
 instance Applicative Atom where
   pure = Var
