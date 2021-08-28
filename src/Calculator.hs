@@ -112,12 +112,11 @@ verifyProofStep subst0 (ProofStep law@(Law (LawName lawName) lawEq) eq@(stepLhs 
   case rewrites lawEq stepLhs of
     [] -> Left ("Cannot unify using law " <> fromString lawName)
     xs -> 
-      let failureMsg = "No unifications rewrite " <> fromString (show stepLhs) <> " into " <> fromString (show stepRhs)
+      let failureMsg = "No unifications rewrite\n " <> fromString (ppr stepLhs) <> "\ninto\n " <> fromString (ppr stepRhs)
       in
       case foldr (<>) (Left failureMsg) $ map (unifyExpr stepRhs) xs of
         Left err -> Left err
         Right x -> pure ()
-    -- (_:_) -> Right ()
 
 verifyProofSteps :: forall a. (Ord a, Ppr a, Show a) => [ProofStep a] -> Either CalcError ()
 verifyProofSteps [] = pure mempty

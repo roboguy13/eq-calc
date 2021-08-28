@@ -14,6 +14,8 @@ import           Data.List
 newtype ConstantName = ConstantName String deriving (Show, Eq)
 newtype LawName      = LawName String deriving (Show, Eq)
 
+instance Ppr ConstantName where ppr (ConstantName str) = str
+
 data VarName = VarName String deriving (Show, Eq, Ord) --Char (Maybe Int)
 
 varNameStr :: VarName -> String
@@ -40,6 +42,15 @@ instance Monad Expr where
 
 data Atom a = Var a | Constant ConstantName [Expr a]
   deriving (Functor, Foldable, Traversable, Show, Eq)
+
+instance Ppr a => Ppr (Atom a) where
+  ppr (Var x) = ppr x
+  ppr (Constant name es) = unwords (ppr name : map (wrap . ppr) es)
+    where
+      wrap = ('(':) . (++")")
+
+instance Ppr a => Ppr (Expr a) where
+  ppr (Compose xs) = unwords $ intersperse "." (map ppr xs)
 
 toExpr :: Atom a -> Expr a
 toExpr = Compose . (:[])
