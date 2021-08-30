@@ -16,7 +16,14 @@ main :: IO ()
 main = do
   getArgs >>= \case
     [] -> error "No arguments. Expected file name with laws"
+
     [lawFileName] -> readFile lawFileName >>= parseLawsError >>= (interactive . go)
+
+    [lawFileName, proofFileName] -> do
+      laws <- parseLawsError =<< readFile lawFileName
+      proofStr <- readFile proofFileName
+      go laws proofStr
+
     _ -> error "Too many arguments. Expected one argument with file name containing laws"
 
 parseLawsError :: String -> IO [Law VarName]

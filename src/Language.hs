@@ -74,7 +74,7 @@ newtype Subst a = Subst [(a, Expr a)]
 
 
 parseLawName :: Parser LawName
-parseLawName = LawName <$> some (alphanum <|> char ' ')
+parseLawName = LawName <$> some (alphanum <|> char '_' <|> char ' ')
 
 lookupLaw :: [Law VarName] -> LawName -> Maybe (Law VarName)
 lookupLaw laws name = find go laws
@@ -135,7 +135,7 @@ isReserved = (`elem` [".", "=", "{", "}"])
 
 parseConstantName :: Parser ConstantName
 parseConstantName = do
-  name <- some alphanum <|> operator
+  name <- some (alphanum <|> char '_') <|> operator
   guard (not (isReserved name))
   guard (not (isVarName name))
   pure (ConstantName name)

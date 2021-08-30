@@ -1,0 +1,13 @@
+{const switch}: const x . g = const x . h
+{const definition}: const x y = x
+
+{deriv_plus definition}: deriv_plus f = join pair f (deriv . f)
+{fst of join pair}: fst . join pair f g = f
+{snd of join pair}: snd . join pair f g = g
+
+{deriv_hat definition}: deriv_hat f = D_construct (deriv_plus f)
+
+{linearD definition}: linearD f = D_construct (join pair f (const f))
+
+
+

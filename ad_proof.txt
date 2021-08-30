@@ -1,0 +1,4 @@
+deriv_hat id
+  = {deriv_hat definition}
+      D_construct (deriv_plus id)
+
